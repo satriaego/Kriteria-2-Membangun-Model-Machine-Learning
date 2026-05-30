@@ -1,17 +1,26 @@
 import os
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, log_loss, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score, f1_score, precision_score, 
+    recall_score, log_loss, roc_auc_score, confusion_matrix
+)
 import mlflow
 import mlflow.sklearn
 import mlflow.data
 from mlflow.data.pandas_dataset import PandasDataset
+import dagshub
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
-mlflow.set_tracking_uri(f"file:///{os.path.join(current_dir, 'mlruns')}")
+print("🔗 Menghubungkan ke MLflow Remote di DagsHub...")
+dagshub.init(
+    repo_owner='satriaego',
+    repo_name='Kriteria-2-Membangun-Model-Machine-Learning',
+    mlflow=True
+)
 
-# Set nama eksperimen
 mlflow.set_experiment("Eksperimen_SML_Satria_Ego_Vania_Tuning")
 
 data_path = 'preprocessing/Titanic_cleaned_latest.csv'
@@ -35,7 +44,7 @@ kombinasi_tuning = [
     {"n_estimators": 200, "max_depth": 10}
 ]
 
-print("Hyperparameter Tuning")
+print("\nHyperparameter Tuning")
 
 for i, params in enumerate(kombinasi_tuning):
     run_name = f"Manual_Tuning_Iterasi_{i+1}"
@@ -63,7 +72,6 @@ for i, params in enumerate(kombinasi_tuning):
         train_prec = precision_score(y_train, y_train_pred, average='macro')
         train_rec = recall_score(y_train, y_train_pred, average='macro')
         
-
         train_loss = log_loss(y_train, y_train_prob)
         train_roc = roc_auc_score(y_train, y_train_prob[:, 1]) 
         
@@ -81,6 +89,38 @@ for i, params in enumerate(kombinasi_tuning):
         
         mlflow.sklearn.log_model(model, artifact_path="model")
         
+        if params["n_estimators"] == 100 and params["max_depth"] == 5:
+            print("Membuat 2 Artefak Tambahan")
+            
+            cm = confusion_matrix(y_test, y_test_pred)
+            plt.figure(figsize=(6, 4))
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                        xticklabels=['Not Survived', 'Survived'], 
+                        yticklabels=['Not Survived', 'Survived'])
+            plt.title(f'Confusion Matrix - {run_name}')
+            plt.ylabel('Actual')
+            plt.xlabel('Predicted')
+            
+            nama_file_gambar = 'confusion_matrix.png'
+            plt.savefig(nama_file_gambar, bbox_inches='tight')
+            plt.close()
+
+            mlflow.log_artifact(nama_file_gambar, artifact_path="plots_and_reports")
+            
+            hasil_prediksi_df = X_test.copy()
+            hasil_prediksi_df['Actual_Survived'] = y_test
+            hasil_prediksi_df['Predicted_Survived'] = y_test_pred
+            
+            nama_file_csv = 'test_predictions_report.csv'
+            hasil_prediksi_df.to_csv(nama_file_csv, index=False)
+            
+
+            mlflow.log_artifact(nama_file_csv, artifact_path="plots_and_reports")
+            
+            if os.path.exists(nama_file_gambar): os.remove(nama_file_gambar)
+            if os.path.exists(nama_file_csv): os.remove(nama_file_csv)
+            print("   ↳ 📦 Artefak tambahan berhasil diunggah!")
+        
         print(f"   Score -> Train Acc: {train_acc:.2%}, Test Acc: {test_acc:.2%}")
 
-print("\nHyperparameter tuning selesai")
+print("\nHyperparameter tuning selesai! Silakan periksa dashboard DagsHub Anda secara online.")
