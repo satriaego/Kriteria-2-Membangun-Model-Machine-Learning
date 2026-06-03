@@ -1,4 +1,5 @@
 import os
+import sys
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -14,12 +15,22 @@ import mlflow.data
 from mlflow.data.pandas_dataset import PandasDataset
 import dagshub
 
-print("🔗 Menghubungkan ke MLflow Remote di DagsHub...")
-dagshub.init(
-    repo_owner='satriaego',
-    repo_name='Kriteria-2-Membangun-Model-Machine-Learning',
-    mlflow=True
-)
+TARGET_TRACKING = "LOCAL"
+
+if len(sys.argv) > 1 and sys.argv[1] == "--dagshub":
+    TARGET_TRACKING = "DAGSHUB"
+
+print(f"📡 Mengonfigurasi MLflow Tracking ke mode: [{TARGET_TRACKING}]")
+
+if TARGET_TRACKING == "DAGSHUB":
+    dagshub.init(
+        repo_owner='satriaego',
+        repo_name='Kriteria-2-Membangun-Model-Machine-Learning',
+        mlflow=True
+    )
+else:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    mlflow.set_tracking_uri(f"sqlite:///{os.path.join(current_dir, 'mlflow.db')}")
 
 mlflow.set_experiment("Eksperimen_SML_Satria_Ego_Vania_Tuning")
 
@@ -86,6 +97,22 @@ for i, params in enumerate(kombinasi_tuning):
         # -----------------------------------------------------------
 
         mlflow.sklearn.log_model(model, artifact_path="model")
+
+        cm = confusion_matrix(y_test, y_test_pred)
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                    xticklabels=['Not Survived', 'Survived'], 
+                    yticklabels=['Not Survived', 'Survived'])
+        plt.title(f"Confusion Matrix - Iterasi {i+1}")
+        plt.ylabel('Actual Label')
+        plt.xlabel('Predicted Label')
+        
+        nama_gambar = f"confusion_matrix_iterasi_{i+1}.png"
+        plt.tight_layout()
+        plt.savefig(nama_gambar)
+        plt.close()
+        
+        mlflow.log_artifact(nama_gambar, artifact_path="plots_evaluasi")
         
         if (params["n_estimators"] == 100 and params["max_depth"] == 5) or \
            (params["n_estimators"] == 200 and params["max_depth"] == 10):
@@ -105,4 +132,4 @@ for i, params in enumerate(kombinasi_tuning):
         
         print(f"   Score -> Train Acc: {train_acc:.2%}, Test Acc: {test_acc:.2%}")
 
-print("\nHyperparameter tuning selesai! Silakan periksa dashboard DagsHub Anda secara online.")
+print("\nHyperparameter tuning selesai!")
