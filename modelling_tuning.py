@@ -66,15 +66,12 @@ for i, params in enumerate(kombinasi_tuning):
         
         y_train_pred = model.predict(X_train)
         y_train_prob = model.predict_proba(X_train)
-        
         train_acc = accuracy_score(y_train, y_train_pred)
         train_f1 = f1_score(y_train, y_train_pred, average='macro')
         train_prec = precision_score(y_train, y_train_pred, average='macro')
         train_rec = recall_score(y_train, y_train_pred, average='macro')
-        
         train_loss = log_loss(y_train, y_train_prob)
         train_roc = roc_auc_score(y_train, y_train_prob[:, 1]) 
-        
         y_test_pred = model.predict(X_test)
         test_acc = accuracy_score(y_test, y_test_pred)
         
@@ -86,40 +83,25 @@ for i, params in enumerate(kombinasi_tuning):
         mlflow.log_metric("training_roc_auc", train_roc)
         mlflow.log_metric("training_score", train_acc)
         mlflow.log_metric("testing_accuracy_score", test_acc)
-        
+        # -----------------------------------------------------------
+
         mlflow.sklearn.log_model(model, artifact_path="model")
         
-        if params["n_estimators"] == 100 and params["max_depth"] == 5:
-            print("Membuat 2 Artefak Tambahan")
+        if (params["n_estimators"] == 100 and params["max_depth"] == 5) or \
+           (params["n_estimators"] == 200 and params["max_depth"] == 10):
             
-            cm = confusion_matrix(y_test, y_test_pred)
-            plt.figure(figsize=(6, 4))
-            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                        xticklabels=['Not Survived', 'Survived'], 
-                        yticklabels=['Not Survived', 'Survived'])
-            plt.title(f'Confusion Matrix - {run_name}')
-            plt.ylabel('Actual')
-            plt.xlabel('Predicted')
+            import joblib
             
-            nama_file_gambar = 'confusion_matrix.png'
-            plt.savefig(nama_file_gambar, bbox_inches='tight')
-            plt.close()
-
-            mlflow.log_artifact(nama_file_gambar, artifact_path="plots_and_reports")
+            nama_file_model = f"compiled_model_iterasi_{i+1}.pkl"
             
-            hasil_prediksi_df = X_test.copy()
-            hasil_prediksi_df['Actual_Survived'] = y_test
-            hasil_prediksi_df['Predicted_Survived'] = y_test_pred
+            joblib.dump(model, nama_file_model)
             
-            nama_file_csv = 'test_predictions_report.csv'
-            hasil_prediksi_df.to_csv(nama_file_csv, index=False)
+            mlflow.log_artifact(nama_file_model, artifact_path="saved_compiled_models")
             
-
-            mlflow.log_artifact(nama_file_csv, artifact_path="plots_and_reports")
-            
-            if os.path.exists(nama_file_gambar): os.remove(nama_file_gambar)
-            if os.path.exists(nama_file_csv): os.remove(nama_file_csv)
-            print("   ↳ 📦 Artefak tambahan berhasil diunggah!")
+            if os.path.exists(nama_file_model): 
+                os.remove(nama_file_model)
+                
+            print(f"   ↳ 📦 Artefak Tambahan: {nama_file_model} berhasil diunggah ke DagsHub!")
         
         print(f"   Score -> Train Acc: {train_acc:.2%}, Test Acc: {test_acc:.2%}")
 
